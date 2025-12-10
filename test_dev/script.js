@@ -1,4 +1,4 @@
-import WebSocketJS from "https://gyverlibs.github.io/Websocket.js/websocket.min.js";
+import WebSocketJS from "../websocket";
 
 let i = 0;
 let ws = new WebSocketJS({ port: 81, proto: 'esp' });

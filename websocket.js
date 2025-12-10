@@ -2,68 +2,95 @@ export default class WebSocketJS {
     //#region handlers
     onbin(b) { }
     ontext(t) { }
+
     onopen() { }
     onclose() { }
+    onchange(s) { }
     onerror(e) { }
 
     //#region constructor
-    constructor(ip, port, proto, tout = 1000) {
-        this.config(ip, port, proto, tout);
+    constructor(params = {}) {
+        const def = {
+            ip: "localhost",
+            port: 81,
+            proto: "",
+            secure: false,
+            tout: 1000,
+        };
+        this.cfg = { ...def, ...params };
+        this.ws = null;
+        this.reconnect = false;
     }
-    config(ip, port, proto, tout = 1000) {
-        this.ip = ip;
-        this.port = port;
-        this.proto = proto;
-        this.tout = tout;
+
+    config(params = {}) {
+        this.cfg = { ...this.cfg, ...params };
     }
 
     //#region methods
     opened() {
-        return this.ws && this.ws.readyState == WebSocket.OPEN;
+        return this.ws && this.ws.readyState === WebSocket.OPEN;
     }
-    open() {
-        if (this.ws) {
-            this.ws.close();
-            return;
-        }
 
-        this.ws = new WebSocket(`ws://${this.ip}:${this.port}/`, [this.proto]);
+    open() {
+        if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) return;
+
+        let proto = this.cfg.secure || location.protocol === "https:" ? "wss" : "ws";
+        this.ws = new WebSocket(`${proto}://${this.cfg.ip}:${this.cfg.port}/`, [this.cfg.proto]);
         this.ws.binaryType = "arraybuffer";
         this.reconnect = true;
 
-        let lws = this.ws;
-        let timeout = setTimeout(() => lws.close(), this.tout);
+        const socket = this.ws;
+        let timeout = setTimeout(() => {
+            if (socket.readyState === WebSocket.CONNECTING) socket.close();
+        }, this.cfg.tout);
 
-        this.ws.onopen = () => {
+        socket.onopen = () => {
             clearTimeout(timeout);
-            this.onopen();
-        }
+            this._change(true);
+        };
 
-        this.ws.onclose = () => {
-            this.ws = null;
+        socket.onclose = () => {
             clearTimeout(timeout);
-            if (this.reconnect) setTimeout(() => this.open(), this.tout);
-            this.onclose();
-        }
 
-        this.ws.onmessage = (e) => {
+            if (this.ws === socket) this.ws = null;
+
+            this._change(false);
+
+            if (this.reconnect) {
+                setTimeout(() => this.open(), this.cfg.tout);
+            }
+        };
+
+        socket.onmessage = (e) => {
             if (typeof e.data === "string") this.ontext(e.data);
             else this.onbin(e.data);
-        }
+        };
 
-        this.ws.onerror = (e) => {
-            this.onerror(e);
-        }
+        socket.onerror = (e) => {
+            this.onerror('[WS] Error');
+        };
     }
+
     close() {
         this.reconnect = false;
-        if (this.ws) this.ws.close();
+
+        if (this.ws) {
+            const socket = this.ws;
+            this.ws = null;
+            socket.close();
+        }
     }
 
     sendBin(data) {
         if (this.opened()) this.ws.send(data);
     }
+
     sendText(text) {
         if (this.opened()) this.ws.send(text);
+    }
+
+    _change(s) {
+        this.onchange(s);
+        s ? this.onopen() : this.onclose();
     }
 }
