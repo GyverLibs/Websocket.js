@@ -1,4 +1,11 @@
 export default class WebSocketJS {
+    static State = {
+        Closed: 'closed',
+        Opening: 'opening',
+        Open: 'open',
+        Closing: 'closing',
+    };
+
     //#region handlers
     onbin(b) { }
     ontext(t) { }
@@ -39,6 +46,7 @@ export default class WebSocketJS {
         if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) return;
 
         let proto = this.cfg.secure || location.protocol === "https:" ? "wss" : "ws";
+        this._change(WebSocketJS.State.Opening);
         this.ws = new WebSocket(`${proto}://${this.cfg.ip}:${this.cfg.port}/`, [this.cfg.proto]);
         this.ws.binaryType = "arraybuffer";
 
@@ -51,7 +59,7 @@ export default class WebSocketJS {
 
         socket.onopen = () => {
             clearTimeout(timeout);
-            this._change(true);
+            this._change(WebSocketJS.State.Open);
         };
 
         socket.onclose = () => {
@@ -59,7 +67,7 @@ export default class WebSocketJS {
 
             if (this.ws === socket) this.ws = null;
 
-            this._change(false);
+            this._change(WebSocketJS.State.Closed);
 
             if (this.retry) {
                 setTimeout(() => this._open(), this.cfg.reconnect);
@@ -80,6 +88,7 @@ export default class WebSocketJS {
         this.retry = false;
 
         if (this.ws) {
+            this._change(WebSocketJS.State.Closing);
             const socket = this.ws;
             this.ws = null;
             socket.close();
@@ -97,6 +106,9 @@ export default class WebSocketJS {
     //#region private
     _change(s) {
         this.onchange(s);
-        s ? this.onopen() : this.onclose();
+        switch (s) {
+            case WebSocketJS.State.Open: this.onopen(); break;
+            case WebSocketJS.State.Closed: this.onclose(); break;
+        }
     }
 }

@@ -13,6 +13,7 @@ ws.onbin = b => console.log(b);
 ws.ontext = t => console.log(t);
 
 // state
-ws.onopen = () => console.log('Opened');
-ws.onclose = () => console.log('Closed');
+// ws.onopen = () => console.log('Opened');
+// ws.onclose = () => console.log('Closed');
+ws.onchange = e => console.log(e);
 ws.onerror = e => console.log(e);
