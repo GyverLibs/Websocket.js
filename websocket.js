@@ -15,11 +15,11 @@ export default class WebSocketJS {
             port: 81,
             proto: "",
             secure: false,
-            tout: 1000,
+            reconnect: 1000,
         };
         this.cfg = { ...def, ...params };
         this.ws = null;
-        this.reconnect = false;
+        this.retry = false;
     }
 
     config(params = {}) {
@@ -32,17 +32,22 @@ export default class WebSocketJS {
     }
 
     open() {
+        if (this.cfg.reconnect) this.retry = true;
+        this._open();
+    }
+    _open() {
         if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) return;
 
         let proto = this.cfg.secure || location.protocol === "https:" ? "wss" : "ws";
         this.ws = new WebSocket(`${proto}://${this.cfg.ip}:${this.cfg.port}/`, [this.cfg.proto]);
         this.ws.binaryType = "arraybuffer";
-        this.reconnect = true;
 
         const socket = this.ws;
-        let timeout = setTimeout(() => {
+        let timeout = null;
+
+        if (this.retry) timeout = setTimeout(() => {
             if (socket.readyState === WebSocket.CONNECTING) socket.close();
-        }, this.cfg.tout);
+        }, this.cfg.reconnect);
 
         socket.onopen = () => {
             clearTimeout(timeout);
@@ -56,8 +61,8 @@ export default class WebSocketJS {
 
             this._change(false);
 
-            if (this.reconnect) {
-                setTimeout(() => this.open(), this.cfg.tout);
+            if (this.retry) {
+                setTimeout(() => this._open(), this.cfg.reconnect);
             }
         };
 
@@ -72,7 +77,7 @@ export default class WebSocketJS {
     }
 
     close() {
-        this.reconnect = false;
+        this.retry = false;
 
         if (this.ws) {
             const socket = this.ws;
@@ -89,6 +94,7 @@ export default class WebSocketJS {
         if (this.opened()) this.ws.send(text);
     }
 
+    //#region private
     _change(s) {
         this.onchange(s);
         s ? this.onopen() : this.onclose();

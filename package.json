@@ -1,6 +1,6 @@
 {
   "name": "@alexgyver/websocket",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Websocket API wrapper with reconnect",
   "main": "./websocket.js",
   "module": "./websocket.js",
