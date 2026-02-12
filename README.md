@@ -2,7 +2,11 @@
 Обёртка на JS WebSocket
 - Автоматическое переподключение
 
-> npm i @alexgyver/websocket
+[demo](https://gyverlibs.github.io/Websocket.js/test/)
+
+> **Browser**: https://gyverlibs.github.io/Websocket.js/Websocket.min.js
+
+> **Node**: npm i @alexgyver/websocket
 
 ## Дока
 ```js
