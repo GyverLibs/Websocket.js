@@ -20,7 +20,7 @@ export default class WebSocketJS {
         const def = {
             ip: "localhost",
             port: 81,
-            proto: "",
+            proto: undefined,
             secure: false,
             reconnect: 1000,
         };
@@ -47,7 +47,7 @@ export default class WebSocketJS {
 
         let proto = this.cfg.secure || location.protocol === "https:" ? "wss" : "ws";
         this._change(WebSocketJS.State.Opening);
-        this.ws = new WebSocket(`${proto}://${this.cfg.ip}:${this.cfg.port}/`, [this.cfg.proto]);
+        this.ws = new WebSocket(`${proto}://${this.cfg.ip}:${this.cfg.port}/`, this.cfg.proto);
         this.ws.binaryType = "arraybuffer";
 
         const socket = this.ws;
@@ -70,7 +70,7 @@ export default class WebSocketJS {
             this._change(WebSocketJS.State.Closed);
 
             if (this.retry) {
-                setTimeout(() => this._open(), this.cfg.reconnect);
+                setTimeout(() => this.retry && this._open(), this.cfg.reconnect);
             }
         };
 
