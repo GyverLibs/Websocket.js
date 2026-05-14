@@ -6,7 +6,6 @@ export default class WebSocketJS {
         Closing: 'closing',
     };
 
-    //#region handlers
     onbin(b) { }
     ontext(t) { }
 
@@ -15,7 +14,6 @@ export default class WebSocketJS {
     onchange(s) { }
     onerror(e) { }
 
-    //#region constructor
     constructor(params = {}) {
         const def = {
             ip: "localhost",
@@ -24,40 +22,65 @@ export default class WebSocketJS {
             secure: false,
             reconnect: 1000,
         };
+
         this.cfg = { ...def, ...params };
-        this.ws = null;
-        this.retry = false;
     }
 
     config(params = {}) {
         this.cfg = { ...this.cfg, ...params };
     }
 
-    //#region methods
     opened() {
-        return this.ws && this.ws.readyState === WebSocket.OPEN;
+        return this._state === WebSocketJS.State.Open &&
+            this.ws &&
+            this.ws.readyState === WebSocket.OPEN;
     }
 
     open() {
         if (this.cfg.reconnect) this.retry = true;
         this._open();
+        return true;
     }
+
     _open() {
-        if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) return;
+        if (
+            this.ws &&
+            (
+                this.ws.readyState === WebSocket.CONNECTING ||
+                this.ws.readyState === WebSocket.OPEN
+            )
+        ) {
+            return false;
+        }
 
-        let proto = this.cfg.secure || location.protocol === "https:" ? "wss" : "ws";
+        const proto = this.cfg.secure || location.protocol === "https:"
+            ? "wss"
+            : "ws";
+
+        const url = `${proto}://${this.cfg.ip}:${this.cfg.port}/`;
+
         this._change(WebSocketJS.State.Opening);
-        this.ws = new WebSocket(`${proto}://${this.cfg.ip}:${this.cfg.port}/`, this.cfg.proto);
-        this.ws.binaryType = "arraybuffer";
 
-        const socket = this.ws;
+        const socket = this.cfg.proto
+            ? new WebSocket(url, this.cfg.proto)
+            : new WebSocket(url);
+
+        socket.binaryType = "arraybuffer";
+        this.ws = socket;
+
         let timeout = null;
 
-        if (this.retry) timeout = setTimeout(() => {
-            if (socket.readyState === WebSocket.CONNECTING) socket.close();
-        }, this.cfg.reconnect);
+        if (this.retry) {
+            timeout = setTimeout(() => {
+                if (socket.readyState === WebSocket.CONNECTING) {
+                    socket.close();
+                }
+            }, this.cfg.reconnect);
+        }
 
         socket.onopen = () => {
+            if (this.ws !== socket) return;
+
             clearTimeout(timeout);
             this._change(WebSocketJS.State.Open);
         };
@@ -65,50 +88,103 @@ export default class WebSocketJS {
         socket.onclose = () => {
             clearTimeout(timeout);
 
-            if (this.ws === socket) this.ws = null;
+            if (this.ws !== socket) return;
 
+            this.ws = null;
             this._change(WebSocketJS.State.Closed);
 
             if (this.retry) {
-                setTimeout(() => this.retry && this._open(), this.cfg.reconnect);
+                setTimeout(() => {
+                    if (this.retry) this._open();
+                }, this.cfg.reconnect);
             }
         };
 
         socket.onmessage = (e) => {
-            if (typeof e.data === "string") this.ontext(e.data);
-            else this.onbin(e.data);
+            if (this.ws !== socket) return;
+
+            try {
+                if (typeof e.data === "string") this.ontext(e.data);
+                else this.onbin(e.data);
+            } catch (e) {
+                this._error(e);
+            }
         };
 
         socket.onerror = (e) => {
-            this.onerror('[WS] Error');
+            if (this.ws !== socket) return;
+            this._error(e);
         };
+
+        return true;
     }
 
     close() {
         this.retry = false;
 
-        if (this.ws) {
-            this._change(WebSocketJS.State.Closing);
-            const socket = this.ws;
-            this.ws = null;
-            socket.close();
+        if (!this.ws) {
+            this._change(WebSocketJS.State.Closed);
+            return true;
         }
+
+        this._change(WebSocketJS.State.Closing);
+
+        const socket = this.ws;
+        this.ws = null;
+
+        try {
+            socket.close();
+        } catch (e) {
+            this._error(e);
+        }
+
+        this._change(WebSocketJS.State.Closed);
+
+        return true;
     }
 
     sendBin(data) {
-        if (this.opened()) this.ws.send(data);
+        return this._send(data);
     }
 
     sendText(text) {
-        if (this.opened()) this.ws.send(text);
+        return this._send(text);
     }
 
-    //#region private
+    _send(data) {
+        if (!this.opened()) return false;
+
+        try {
+            this.ws.send(data);
+            return true;
+        } catch (e) {
+            this._error(e);
+            return false;
+        }
+    }
+
+    ws = null;
+    retry = false;
+    _state = WebSocketJS.State.Closed;
+
+    _error(e) {
+        this.onerror('[WS] ' + e);
+    }
+
     _change(s) {
+        if (this._state === s) return;
+
+        this._state = s;
         this.onchange(s);
+
         switch (s) {
-            case WebSocketJS.State.Open: this.onopen(); break;
-            case WebSocketJS.State.Closed: this.onclose(); break;
+            case WebSocketJS.State.Open:
+                this.onopen();
+                break;
+
+            case WebSocketJS.State.Closed:
+                this.onclose();
+                break;
         }
     }
 }
