@@ -14,15 +14,19 @@ constructor(params = {});
 config(params = {});
 // ip: "localhost"
 // port: 81
+// path: "/"
+// url: undefined
 // proto: ""
 // secure: false
 // reconnect: 1000
+// connectTimeout: 5000
+// closeTimeout: 2000
 
 onbin(b);
 ontext(t);
 
 onopen():
-onclose():
+onclose(code, reason, wasClean):
 onchange(s):
 onerror(e);
 
